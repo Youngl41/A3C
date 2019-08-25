@@ -65,12 +65,12 @@ class A3C(keras.Model):
         self.state_size                           = state_size
         self.action_size                          = action_size
         # Policy model
-        self.dense1                               = layers.Dense(100, activation='relu')
+        self.dense1                               = layers.Dense(100, activation='tanh')
         # self.dense1b                            = layers.Dense(100, activation='relu')
-        self.policy_logits                        = layers.Dense(action_size)
+        self.policy_logits                        = layers.Dense(action_size, activation='tanh')#, activation='softmax')
         # Value model
-        self.dense2                               = layers.Dense(100, activation='relu')
-        self.values                               = layers.Dense(1)
+        self.dense2                               = layers.Dense(100, activation='tanh')
+        self.values                               = layers.Dense(1, activation='tanh')
 
     # Forward
     def call(self, inputs):
@@ -227,7 +227,7 @@ class Worker(threading.Thread):
             current_state                         = self.env.reset()
             mem.clear()
             epi_reward                            = 0.
-            epi_asjusted_reward                   = 0.
+            epi_adjusted_reward                   = 0.
             epi_steps                             = 1
             self.epi_loss                         = 0
 
@@ -245,7 +245,7 @@ class Worker(threading.Thread):
                 else:
                     adjusted_reward               = reward
                 epi_reward                        = epi_reward + reward
-                epi_asjusted_reward               = epi_asjusted_reward + adjusted_reward
+                epi_adjusted_reward               = epi_adjusted_reward + adjusted_reward
                 # Update memory
                 mem.add(current_state, action, adjusted_reward)
 
@@ -265,7 +265,7 @@ class Worker(threading.Thread):
                     if done:
                         # Update global moving avg and also print results
                         Worker.global_moving_average_reward= \
-                            record(Worker.global_episode, epi_reward, epi_asjusted_reward,
+                            record(Worker.global_episode, epi_reward, epi_adjusted_reward,
                                    self.worker_idx, Worker.global_moving_average_reward, 
                                    self.result_queue,self.epi_loss, epi_steps)
                         # # Reset episode time counter
@@ -325,6 +325,6 @@ if __name__=='__main__':
         master.play()
 
 
-# python scripts/a3c_main.py --algorithm random --max-eps=4000 --save-dir model2 --train
-# python scripts/a3c_main.py --algorithm a3c --max-eps=50 --save-dir model3 --train
-# python scripts/a3c_main.py --save-dir model
+# python scripts/a3c_main.py --algorithm random --max-eps=4000 --save-dir models --train
+# python scripts/a3c_main.py --algorithm a3c --max-eps=300 --save-dir models --train
+# python scripts/a3c_main.py --save-dir models
