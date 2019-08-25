@@ -66,6 +66,7 @@ parser.add_argument('--time-limit', type=int, help='Max memory size before forge
 # parser.add_argument('--batch-size', default=32, type=int, help='How many turns to train global model per update.')
 parser.add_argument('--max-eps', default=1000, type=int, help='Global maximum number of episodes to run.')
 parser.add_argument('--gamma', default=0.9, type=float, help='Discount factor of rewards.')
+parser.add_argument('--trained-model', default='', type=str, help='Load trained model for continued training.')
 parser.add_argument('--periodic-save', default=0, type=int, help='Load periodic save model.')
 parser.add_argument('--save-dir', default=os.path.join(main_dir, 'models'), type=str, help='Directory in which you desire to save the model.')
 args                                              = parser.parse_args()
@@ -157,6 +158,10 @@ class MasterAgent():
         # Define global model
         self.global_model                         = A3C(self.state_size, self.action_size)
         _                                         = self.global_model(tf.convert_to_tensor(np.random.random((1, 84,84,args.framestack,1)), dtype=tf.float32)) # Initialise model (get weights)
+        try:
+            self.global_model.load_weights(args.trained_model)
+        except:
+            pass
         print(self.global_model.summary())
         # Define optimiser
         self.opt                                  = AdamOptimizer(args.lr, use_locking=True)
@@ -310,8 +315,8 @@ class Worker(threading.Thread):
                 new_state                         = np.reshape(new_state, [1,84,84,args.framestack,1])
                 if done:
                     adjusted_reward               = -1.
-                elif abs(reward)<0.01:
-                    adjusted_reward               = -0.05#-.02
+                elif abs(reward)<0.0001:
+                    adjusted_reward               = -0.01#-.02
                 else:
                     adjusted_reward               = 1.0#np.sign(reward)# - 0.01
                 epi_reward                        = epi_reward + reward
@@ -418,6 +423,7 @@ if __name__=='__main__':
 '''
 
 python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 300 --skip-frames 3
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=25000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 500 --skip-frames 3 --trained-model 'models/demonattack_working/model_DemonAttackNoFrameskip-v4_periodic_save.h5'
 
 '''
 
