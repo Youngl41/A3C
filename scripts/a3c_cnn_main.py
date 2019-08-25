@@ -71,25 +71,7 @@ parser.add_argument('--periodic-save', default=0, type=int, help='Load periodic 
 parser.add_argument('--save-dir', default=os.path.join(main_dir, 'models'), type=str, help='Directory in which you desire to save the model.')
 args                                              = parser.parse_args()
 
-# env                                             = gym.make('PongNoFrameskip-v4').unwrapped
-# env                                             = WarpFrame(env)
-# env                                             = dqn.MaxAndSkipEnv(env,4)#args.skip_frames)
-# env                                             = dqn.ScaledFloatFrame(env)
-# env                                             = dqn.EpisodicLifeEnv(env)
-# env.observation_space.shape
-# action_size                                     = env.action_space.n
-# model                                           = A3C([84,84,1],6)
-# a,b                                             = model(tf.convert_to_tensor(np.random.random((1, 84,84,1,1)), dtype=tf.float32))
-# a[0].shape
-# a[0,0,0,0,:].shape
-# tf.nn.softmax(a).shape
-# np.array(tf.nn.softmax(a))[0,0,0,0,:].shape
-# b.shape
-# tf.nn.softmax(policy)
 
-# logits, _                                       = model(tf.convert_to_tensor(current_state,dtype=tf.float32))
-# probs                                           = tf.nn.softmax(logits[0,0,0,0,:])
-# action                                          = np.random.choice(action_size, p=probs.numpy())
 #------------------------------
 # A3C model
 #------------------------------
@@ -105,7 +87,7 @@ class A3C(keras.Model):
         self.pool2                                = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')
         self.conv3                                = layers.Conv3D(128, kernel_size=(3,3,1), strides=(1,1,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
         self.pool3                                = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')
-        # self.dropout = layers.Dropout(0.5)
+        # self.dropout                            = layers.Dropout(0.5)
         self.flatten                              = layers.Flatten()
         self.dense1                               = layers.Dense(128, activation='tanh')
         self.policy_logits                        = layers.Dense(action_size, activation='linear')
@@ -122,7 +104,7 @@ class A3C(keras.Model):
         x                                         = self.pool2(x)
         x                                         = self.conv3(x)
         x                                         = self.pool3(x)
-        # x = self.dropout(x)
+        # x                                       = self.dropout(x)
         x                                         = self.flatten(x)
         x                                         = self.dense1(x)
         logits                                    = self.policy_logits(x)
@@ -303,7 +285,7 @@ class Worker(threading.Thread):
 
             time_count                            = 0
             done                                  = False
-            min_probs = []
+            min_probs                             = []
             while not done:
                 # Boltzmann action selection
                 logits, _                         = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
@@ -355,7 +337,7 @@ class Worker(threading.Thread):
                                             'episode score: {}'.format(self.save_dir, epi_reward))
                                 self.global_model.save_weights(os.path.join(self.save_dir,'model_{}.h5'.format(self.game_name)))
                                 Worker.best_score = epi_reward
-                        min_probs = []
+                        min_probs                 = []
                         Worker.global_episode     = Worker.global_episode + 1
                 epi_steps                         = epi_steps + 1
                 time_count                        = time_count + 1
@@ -383,26 +365,15 @@ class Worker(threading.Thread):
         discounted_rewards.reverse()
 
         logits, values                            = self.local_model(tf.convert_to_tensor(np.vstack(memory.states),dtype=tf.float32))
-        # Get our advantages
-        # print(values.shape, np.array(discounted_rewards).shape, np.vstack(memory.states).shape)
-        # print(logits.shape, values.shape)
+        # Get advantages
         advantage                                 = tf.convert_to_tensor(np.array(discounted_rewards),dtype=tf.float32) - values[:,0]
         # Value loss
         value_loss                                = advantage ** 2
-        # Calculate our policy loss
-        # policy                                  = tf.nn.softmax(logits[:,0,0,0,:])
-        # entropy                                 = tf.nn.softmax_cross_entropy_with_logits_v2(labels=policy,logits=logits[:,0,0,0,:])
-        # policy_loss                             = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=memory.actions,logits=logits[:,0,0,0,:])
-        
+        # Policy loss
         policy                                    = tf.nn.softmax(logits[:,:])
         entropy                                   = tf.nn.softmax_cross_entropy_with_logits_v2(labels=policy,logits=logits[:,:])
         policy_loss                               = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=memory.actions,logits=logits[:,:])
         policy_loss                               = policy_loss * tf.stop_gradient(advantage)
-        # print('rew', np.array(discounted_rewards).shape, 'values', values.shape)
-        # print('policy', policy.shape)
-        # print('logits', logits.shape)
-        # print('adv', advantage.shape, 'stop_gradient', tf.stop_gradient(advantage).shape)
-        # print('entropy', entropy.shape)
         policy_loss                               = policy_loss - 0.01 * entropy
         total_loss                                = tf.reduce_mean((0.5 * value_loss + policy_loss))
         return total_loss
@@ -423,7 +394,7 @@ if __name__=='__main__':
 '''
 
 python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 300 --skip-frames 3
-python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=25000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 500 --skip-frames 3 --trained-model 'models/demonattack_working/model_DemonAttackNoFrameskip-v4_periodic_save.h5'
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=30000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 1000 --skip-frames 3 --trained-model 'models/demonattack_working/model_DemonAttackNoFrameskip-v4_periodic_save.h5'
 
 '''
 
