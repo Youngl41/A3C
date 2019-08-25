@@ -27,7 +27,9 @@ def record(episode,
            adjusted_reward,
            worker_idx,
            global_ep_reward,
+           global_ep_adjusted_reward,
            result_queue,
+           avg_min_prob,
            total_loss,
            num_steps):
     '''Helper function to store score and print statistics.
@@ -45,17 +47,21 @@ def record(episode,
         global_ep_reward = episode_reward
     else:
         global_ep_reward = global_ep_reward * 0.99 + episode_reward * 0.01
+    if global_ep_adjusted_reward==0:
+        global_ep_adjusted_reward = adjusted_reward
+    else:
+        global_ep_adjusted_reward = global_ep_adjusted_reward * 0.99 + adjusted_reward * 0.01
     print(
             f'Episode: {episode} | '
-            f'Moving Average Reward: {int(global_ep_reward)} | '
-            f'Episode Reward: {int(episode_reward)} | '
-            f'Episode Adjusted Reward: {int(adjusted_reward)} | '
+            f'Moving Average Reward: {int(global_ep_reward)} ({int(global_ep_adjusted_reward)}) | '
+            f'Episode Reward: {int(episode_reward)} ({int(adjusted_reward)}) | '
+            'Avg Min Probability: '+str(int(avg_min_prob*100))+'% | '
             f'Loss: {int(total_loss / float(num_steps) * 1000) / 1000} | '
             f'Steps: {num_steps} | '
             f'Worker: {worker_idx}'
     )
     result_queue.put(global_ep_reward)
-    return global_ep_reward
+    return global_ep_reward, global_ep_adjusted_reward
 
 
 class Memory:

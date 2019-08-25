@@ -98,23 +98,31 @@ class A3C(keras.Model):
         self.state_size                           = state_size
         self.action_size                          = action_size
         # Policy model
-        self.conv1                                = layers.Conv3D(16, kernel_size=(8,8, 1), strides=(4,4,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
-        self.conv2                                = layers.Conv3D(32, kernel_size=(4,4, 1), strides=(2,2,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
-        self.conv3                                = layers.Conv3D(64, kernel_size=(3,3, 1), strides=(1,1,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
+        self.conv1                                = layers.Conv3D(32, kernel_size=(8,8,1), strides=(4,4,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
+        self.pool1                                = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')
+        self.conv2                                = layers.Conv3D(64, kernel_size=(4,4,1), strides=(2,2,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
+        self.pool2                                = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')
+        self.conv3                                = layers.Conv3D(128, kernel_size=(3,3,1), strides=(1,1,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
+        self.pool3                                = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')
+        # self.dropout = layers.Dropout(0.5)
         self.flatten                              = layers.Flatten()
-        self.dense1                               = layers.Dense(64, activation='tanh')
-        self.policy_logits                        = layers.Dense(action_size, activation='tanh')
+        self.dense1                               = layers.Dense(128, activation='tanh')
+        self.policy_logits                        = layers.Dense(action_size, activation='linear')
         # Value model
-        self.dense2                               = layers.Dense(64, activation='tanh')
-        self.values                               = layers.Dense(1, activation='tanh')
+        self.dense2                               = layers.Dense(512, activation='tanh')
+        self.values                               = layers.Dense(1, activation='linear')
 
     # Forward
     def call(self, inputs):
         # Policy model
         x                                         = self.conv1(inputs)
+        x                                         = self.pool1(x)
         x                                         = self.conv2(x)
+        x                                         = self.pool2(x)
         x                                         = self.conv3(x)
-        x = self.flatten(x)
+        x                                         = self.pool3(x)
+        # x = self.dropout(x)
+        x                                         = self.flatten(x)
         x                                         = self.dense1(x)
         logits                                    = self.policy_logits(x)
         # Value model
@@ -196,6 +204,10 @@ class MasterAgent():
         env                                       = dqn.ScaledFloatFrame(env)
         env                                       = dqn.EpisodicLifeEnv(env)
         env                                       = dqn.FrameStack(env, args.framestack)
+        random_seed                               = (int(time.time()*100) % 1999)**2 % 199999
+        np.random.seed(random_seed+1)
+        env.seed(random_seed)
+        print('\nRandom seed:\t', random_seed,'\n')
         print('\nAction meanings:\n', env.get_action_meanings(),'\n')
         if args.time_limit is not None:
             env                                   = dqn.TimeLimit(env, max_episode_steps=args.time_limit)
@@ -221,7 +233,7 @@ class MasterAgent():
                 state, reward, done, _            = env.step(action)
                 state                             = np.reshape(state, [1,84,84,args.framestack,1])
                 reward_sum                        = reward_sum + reward
-                print('{}. Reward: {}, action: {}'.format(step_counter, reward_sum, action))
+                print('{}.\tReward: {}\t Action #: {}\t Action: {}'.format(step_counter, reward_sum, action, env.get_action_meanings()[action]))
                 step_counter                      = step_counter + 1
         except KeyboardInterrupt:
             print('Received Keyboard Interrupt. Shutting down.')
@@ -236,6 +248,7 @@ class Worker(threading.Thread):
     # Set up global variables across different threads
     global_episode                                = 0
     global_moving_average_reward                  = 0
+    global_moving_average_adjusted_reward         = 0
     best_score                                    = 0
     save_lock                                     = threading.Lock()
 
@@ -272,8 +285,9 @@ class Worker(threading.Thread):
         total_step                                = 1
         mem                                       = Memory(args.memory_size)
         while Worker.global_episode < args.max_eps:
-            random_seed = (int(time.time()*100) % 1999)**2 % 199999
-            np.random.seed(random_seed)
+            random_seed                           = (int(time.time()*100) % 1999)**2 % 199999
+            np.random.seed(random_seed+1)
+            self.env.seed(random_seed)
             current_state                         = self.env.reset()
             current_state                         = np.reshape(current_state, [1,84,84,args.framestack,1])
             mem.clear()
@@ -284,20 +298,22 @@ class Worker(threading.Thread):
 
             time_count                            = 0
             done                                  = False
+            min_probs = []
             while not done:
                 # Boltzmann action selection
-                logits, _                    = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
+                logits, _                         = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
                 probs                             = tf.nn.softmax(logits[0,:])
+                min_probs.append(min(probs))
                 action                            = np.random.choice(self.action_size, p=probs.numpy())
                 # Play action
                 new_state, reward, done, _        = self.env.step(action)
                 new_state                         = np.reshape(new_state, [1,84,84,args.framestack,1])
                 if done:
                     adjusted_reward               = -1.
-                elif reward==0:
-                    adjusted_reward               = -0.2#-.02
+                elif abs(reward)<0.01:
+                    adjusted_reward               = -0.05#-.02
                 else:
-                    adjusted_reward               = np.sign(reward)# - 0.01
+                    adjusted_reward               = 1.0#np.sign(reward)# - 0.01
                 epi_reward                        = epi_reward + reward
                 epi_adjusted_reward               = epi_adjusted_reward + adjusted_reward
                 # Update memory
@@ -321,10 +337,12 @@ class Worker(threading.Thread):
                     # Print results at end of game
                     if done:
                         # Update global moving avg and also print results
-                        Worker.global_moving_average_reward= \
+                        Worker.global_moving_average_reward, Worker.global_moving_average_adjusted_reward= \
                             record(Worker.global_episode, epi_reward, epi_adjusted_reward,
                                    self.worker_idx, Worker.global_moving_average_reward, 
-                                   self.result_queue,self.epi_loss, epi_steps)
+                                   Worker.global_moving_average_adjusted_reward,
+                                   self.result_queue, np.mean(min_probs),
+                                   self.epi_loss, num_steps=epi_steps)
                         # Lock to save model and prevent data races
                         if epi_reward > Worker.best_score:
                             with Worker.save_lock:
@@ -332,6 +350,7 @@ class Worker(threading.Thread):
                                             'episode score: {}'.format(self.save_dir, epi_reward))
                                 self.global_model.save_weights(os.path.join(self.save_dir,'model_{}.h5'.format(self.game_name)))
                                 Worker.best_score = epi_reward
+                        min_probs = []
                         Worker.global_episode     = Worker.global_episode + 1
                 epi_steps                         = epi_steps + 1
                 time_count                        = time_count + 1
@@ -395,16 +414,16 @@ if __name__=='__main__':
     else:
         master.play()
 
+# Train model
+'''
 
-# python scripts/a3c_cnn_main.py --algorithm random --max-eps=4000 --save-dir model2 --train
-# python scripts/a3c_cnn_main.py --algorithm a3c --max-eps=250 --save-dir model3 --train --update-freq 500 --memory-size 500
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --time-limit 1000 --save-dir models --framestack 10 --skip-frames 4
-# python scripts/a3c_cnn_main.py --algorithm a3c --max-eps=10000 --save-dir model3 --train --update-freq 32 --memory-size 32
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=100 --save-dir models --train --update-freq 5 --memory-size 5 --framestack 4 --lr 0.00025
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 5 --memory-size 5 --framestack 3 --lr 0.002
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=100000 --save-dir models --train --update-freq 5 --memory-size 10 --framestack 2 --lr 0.00025 --gamma 0.99 --time-limit 1000 --skip-frames 4
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 300 --skip-frames 3
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 300 --skip-frames 3
 
+'''
 
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 2 --lr 0.00025 --gamma 0.99 --time-limit 500 --skip-frames 3
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 1500 --framestack 2 --skip-frames 3 --periodic-save 0
+# Test model
+'''
+
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 1000 --framestack 1 --skip-frames 3 --periodic-save 1
+
+'''
