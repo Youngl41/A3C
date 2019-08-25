@@ -101,10 +101,11 @@ class A3C(keras.Model):
         self.conv1                                = layers.Conv3D(16, kernel_size=(8,8, 1), strides=(4,4,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
         self.conv2                                = layers.Conv3D(32, kernel_size=(4,4, 1), strides=(2,2,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
         self.conv3                                = layers.Conv3D(64, kernel_size=(3,3, 1), strides=(1,1,1), activation='relu', padding='valid')#, kernel_initializer=VarianceScaling(scale=2.0))
-        self.dense1                               = layers.Dense(256, activation='tanh')
-        self.policy_logits                        = layers.Dense(action_size, activation='softsign')
+        self.flatten                              = layers.Flatten()
+        self.dense1                               = layers.Dense(64, activation='tanh')
+        self.policy_logits                        = layers.Dense(action_size, activation='tanh')
         # Value model
-        self.dense2                               = layers.Dense(256, activation='tanh')
+        self.dense2                               = layers.Dense(64, activation='tanh')
         self.values                               = layers.Dense(1, activation='tanh')
 
     # Forward
@@ -113,6 +114,7 @@ class A3C(keras.Model):
         x                                         = self.conv1(inputs)
         x                                         = self.conv2(x)
         x                                         = self.conv3(x)
+        x = self.flatten(x)
         x                                         = self.dense1(x)
         logits                                    = self.policy_logits(x)
         # Value model
@@ -147,6 +149,7 @@ class MasterAgent():
         # Define global model
         self.global_model                         = A3C(self.state_size, self.action_size)
         _                                         = self.global_model(tf.convert_to_tensor(np.random.random((1, 84,84,args.framestack,1)), dtype=tf.float32)) # Initialise model (get weights)
+        print(self.global_model.summary())
         # Define optimiser
         self.opt                                  = AdamOptimizer(args.lr, use_locking=True)
     def train(self):
@@ -213,7 +216,7 @@ class MasterAgent():
             while not done:
                 env.render()#mode='rgb_array')
                 policy, _                         = model(tf.convert_to_tensor(state, dtype=tf.float32))
-                policy                            = tf.nn.softmax(policy)[0,0,0,0,:]
+                policy                            = tf.nn.softmax(policy)[0,:]
                 action                            = np.argmax(policy)
                 state, reward, done, _            = env.step(action)
                 state                             = np.reshape(state, [1,84,84,args.framestack,1])
@@ -269,6 +272,8 @@ class Worker(threading.Thread):
         total_step                                = 1
         mem                                       = Memory(args.memory_size)
         while Worker.global_episode < args.max_eps:
+            random_seed = (int(time.time()*100) % 1999)**2 % 199999
+            np.random.seed(random_seed)
             current_state                         = self.env.reset()
             current_state                         = np.reshape(current_state, [1,84,84,args.framestack,1])
             mem.clear()
@@ -281,8 +286,8 @@ class Worker(threading.Thread):
             done                                  = False
             while not done:
                 # Boltzmann action selection
-                logits, _                         = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
-                probs                             = tf.nn.softmax(logits[0,0,0,0,:])
+                logits, _                    = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
+                probs                             = tf.nn.softmax(logits[0,:])
                 action                            = np.random.choice(self.action_size, p=probs.numpy())
                 # Play action
                 new_state, reward, done, _        = self.env.step(action)
@@ -290,7 +295,7 @@ class Worker(threading.Thread):
                 if done:
                     adjusted_reward               = -1.
                 elif reward==0:
-                    adjusted_reward               = -0.08#-.02
+                    adjusted_reward               = -0.2#-.02
                 else:
                     adjusted_reward               = np.sign(reward)# - 0.01
                 epi_reward                        = epi_reward + reward
@@ -332,7 +337,7 @@ class Worker(threading.Thread):
                 time_count                        = time_count + 1
                 current_state                     = new_state
                 total_step                        = total_step + 1
-            if Worker.global_episode % 25==0:
+            if Worker.global_episode % 10==0:
                 self.global_model.save_weights(os.path.join(self.save_dir,'model_{}_periodic_save.h5'.format(self.game_name)))
         self.result_queue.put(None)
 
@@ -341,11 +346,10 @@ class Worker(threading.Thread):
         # sample_states                           = [memory.states[idx] for idx in random_idx]
         # sample_actions                          = [memory.actions[idx] for idx in random_idx]
         # sample_rewards                          = [memory.rewards[idx] for idx in random_idx]
-
         if done:
             reward_sum                            = 0.
         else:
-            reward_sum                            = self.local_model(tf.convert_to_tensor(new_state,dtype=tf.float32))[-1].numpy()[0,0,0,0,0]
+            reward_sum                            = self.local_model(tf.convert_to_tensor(new_state,dtype=tf.float32))[-1].numpy()[0,0]
 
         # Get discounted rewards
         discounted_rewards                        = []
@@ -356,8 +360,9 @@ class Worker(threading.Thread):
 
         logits, values                            = self.local_model(tf.convert_to_tensor(np.vstack(memory.states),dtype=tf.float32))
         # Get our advantages
-        # print(values.shape, np.array(discounted_rewards).shape, np.array(discounted_rewards).shape, np.vstack(memory.states).shape)
-        advantage                                 = tf.convert_to_tensor(np.array(discounted_rewards),dtype=tf.float32) - values[:,0,0,0,0]
+        # print(values.shape, np.array(discounted_rewards).shape, np.vstack(memory.states).shape)
+        # print(logits.shape, values.shape)
+        advantage                                 = tf.convert_to_tensor(np.array(discounted_rewards),dtype=tf.float32) - values[:,0]
         # Value loss
         value_loss                                = advantage ** 2
         # Calculate our policy loss
@@ -365,9 +370,9 @@ class Worker(threading.Thread):
         # entropy                                 = tf.nn.softmax_cross_entropy_with_logits_v2(labels=policy,logits=logits[:,0,0,0,:])
         # policy_loss                             = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=memory.actions,logits=logits[:,0,0,0,:])
         
-        policy                                    = tf.nn.softmax(logits[:,0,0,0,:])
-        entropy                                   = tf.nn.softmax_cross_entropy_with_logits_v2(labels=policy,logits=logits[:,0,0,0,:])
-        policy_loss                               = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=memory.actions,logits=logits[:,0,0,0,:])
+        policy                                    = tf.nn.softmax(logits[:,:])
+        entropy                                   = tf.nn.softmax_cross_entropy_with_logits_v2(labels=policy,logits=logits[:,:])
+        policy_loss                               = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=memory.actions,logits=logits[:,:])
         policy_loss                               = policy_loss * tf.stop_gradient(advantage)
         # print('rew', np.array(discounted_rewards).shape, 'values', values.shape)
         # print('policy', policy.shape)
@@ -401,5 +406,5 @@ if __name__=='__main__':
 # python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 300 --skip-frames 3
 
 
-# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=100000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 2 --lr 0.0003 --gamma 0.99 --time-limit 800 --skip-frames 3
+# python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 2 --lr 0.00025 --gamma 0.99 --time-limit 500 --skip-frames 3
 # python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 1500 --framestack 2 --skip-frames 3 --periodic-save 0
