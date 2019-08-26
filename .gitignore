@@ -1,9 +1,9 @@
 # Data
 *.zip
-*.h5
+# *.h5
 #**/Raw_Data/**
 #**/Features/**
-temp**
+**/temp/**
 
 # VSConfig
 .vscode/**
