@@ -394,13 +394,13 @@ if __name__=='__main__':
 '''
 
 python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 300 --skip-frames 3
-python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=30000 --save-dir models --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 1000 --skip-frames 3 --trained-model 'models/demonattack_working/model_DemonAttackNoFrameskip-v4_periodic_save.h5'
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm a3c --max-eps=30000 --save-dir '/Users/young/Dropbox/Apps/reinforcement_learning/a3c/models' --train --update-freq 30 --memory-size 30 --framestack 1 --lr 0.00025 --gamma 0.99 --time-limit 5000 --skip-frames 3 --trained-model 'models/demonattack_working/model_DemonAttackNoFrameskip-v4_periodic_save.h5'
 
 '''
 
 # Test model
 '''
 
-python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir models --time-limit 1000 --framestack 1 --skip-frames 3 --periodic-save 1
+python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir '/Users/young/Dropbox/Apps/reinforcement_learning/a3c/models' --time-limit 5000 --framestack 1 --skip-frames 3 --periodic-save 1
 
 '''
