@@ -1,0 +1,156 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 15 files
+Detected 2 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: scripts\utility\util_doc.py
+--------------------------------------------------------------------------------
+scripts\utility\util_doc.py:70:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+File: scripts\pong.py
+--------------------------------------------------------------------------------
+scripts\pong.py:280:16: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+================================================================================
+Detailed log follows:
+
+================================================================================
+================================================================================
+Input tree: 'scripts'
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'scripts\\a3c_agents.py'
+ outputting to 'scripts_v2\\a3c_agents.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\a3c_cnn_main.py'
+ outputting to 'scripts_v2\\a3c_cnn_main.py'
+--------------------------------------------------------------------------------
+
+54:0: INFO: Renamed 'tf.enable_eager_execution' to 'tf.compat.v1.enable_eager_execution'
+142:70: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+217:58: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+291:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+358:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+367:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+369:52: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+374:52: INFO: Renamed 'tf.nn.softmax_cross_entropy_with_logits_v2' to 'tf.nn.softmax_cross_entropy_with_logits'
+378:52: INFO: Added keywords to args of function 'tf.reduce_mean'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\a3c_main.py'
+ outputting to 'scripts_v2\\a3c_main.py'
+--------------------------------------------------------------------------------
+
+44:0: INFO: Renamed 'tf.enable_eager_execution' to 'tf.compat.v1.enable_eager_execution'
+124:26: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+178:58: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+238:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+291:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+300:69: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+302:52: INFO: Added keywords to args of function 'tf.convert_to_tensor'
+308:52: INFO: Renamed 'tf.nn.softmax_cross_entropy_with_logits_v2' to 'tf.nn.softmax_cross_entropy_with_logits'
+312:52: INFO: Added keywords to args of function 'tf.reduce_mean'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\a3c_util.py'
+ outputting to 'scripts_v2\\a3c_util.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\Agents.py'
+ outputting to 'scripts_v2\\Agents.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\pong.py'
+ outputting to 'scripts_v2\\pong.py'
+--------------------------------------------------------------------------------
+
+280:16: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\tempCodeRunnerFile.py'
+ outputting to 'scripts_v2\\tempCodeRunnerFile.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_doc.py'
+ outputting to 'scripts_v2\\utility\\util_doc.py'
+--------------------------------------------------------------------------------
+
+70:4: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_dqn.py'
+ outputting to 'scripts_v2\\utility\\util_dqn.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_eda.py'
+ outputting to 'scripts_v2\\utility\\util_eda.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_general.py'
+ outputting to 'scripts_v2\\utility\\util_general.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_model.py'
+ outputting to 'scripts_v2\\utility\\util_model.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_network.py'
+ outputting to 'scripts_v2\\utility\\util_network.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_nlp.py'
+ outputting to 'scripts_v2\\utility\\util_nlp.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'scripts\\utility\\util_pre_proc.py'
+ outputting to 'scripts_v2\\utility\\util_pre_proc.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+

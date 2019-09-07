@@ -28,6 +28,7 @@ except NameError:
     sys.path.append(os.path.join(os.getcwd(), '..', '..')) # 2 levels upper dir
 
 from a3c_util import record, Memory
+import utility.util_dqn as dqn
 
 
 #------------------------------
@@ -42,6 +43,13 @@ class RandomAgent:
     """
     def __init__(self, env_name, max_eps):
         self.env                              = gym.make(env_name)
+        self.env                              = dqn.WarpFrame(self.env)
+        self.env                              = dqn.MaxAndSkipEnv(self.env,3)
+        self.env                              = dqn.ScaledFloatFrame(self.env)
+        self.env                              = dqn.EpisodicLifeEnv(self.env)
+        self.env                              = dqn.FrameStack(self.env, 1)
+        self.env                             = dqn.TimeLimit(self.env, max_episode_steps=5000)
+        self.state_size                     = (84,84,1)#env.observation_space.shape[0]
         self.max_episodes                     = max_eps
         self.global_moving_average_reward     = 0
         self.res_queue                        = Queue()
@@ -59,11 +67,13 @@ class RandomAgent:
                 steps += 1
                 reward_sum += reward
             # Record statistics
-            self.global_moving_average_reward = record(episode,
-                                                    reward_sum,
+            self.global_moving_average_reward, _= record(episode,
+                                                    reward_sum, 0,
                                                     0,
                                                     self.global_moving_average_reward,
-                                                    self.res_queue, 0, steps)
+                                                    0,
+                                                    self.res_queue, 0.16, 
+                                                    0, steps)
 
             reward_avg += reward_sum
         final_avg                             = reward_avg / float(self.max_episodes)

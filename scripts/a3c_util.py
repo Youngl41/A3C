@@ -52,13 +52,13 @@ def record(episode,
     else:
         global_ep_adjusted_reward = global_ep_adjusted_reward * 0.99 + adjusted_reward * 0.01
     print(
-            f'Episode: {episode} | '
-            f'Moving Average Reward: {int(global_ep_reward)} ({int(global_ep_adjusted_reward)}) | '
-            f'Episode Reward: {int(episode_reward)} ({int(adjusted_reward)}) | '
-            'Avg Min Probability: '+str(int(avg_min_prob*100))+'% | '
-            f'Loss: {int(total_loss / float(num_steps) * 1000) / 1000} | '
-            f'Steps: {num_steps} | '
-            f'Worker: {worker_idx}'
+            'Episode:', episode, '| ',
+            'Moving Average Reward:', int(global_ep_reward), '('+ str(int(global_ep_adjusted_reward))+ ') | ',
+            'Episode Reward:',int(episode_reward), '('+str(int(adjusted_reward))+') | ',
+            'Avg Min Probability: '+ str(int(avg_min_prob*100))+'% | ',
+            'Loss:',int(total_loss / float(num_steps) * 1000) / 1000, '| ',
+            'Steps:', num_steps, '| ',
+            'Worker:', worker_idx
     )
     result_queue.put(global_ep_reward)
     return global_ep_reward, global_ep_adjusted_reward

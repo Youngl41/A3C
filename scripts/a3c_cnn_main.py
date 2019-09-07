@@ -73,6 +73,24 @@ args                                              = parser.parse_args()
 
 
 #------------------------------
+# Utility functions
+#------------------------------
+from gym.envs.classic_control import rendering
+def repeat_upsample(rgb_array, k=1, l=1, err=[]):
+    # repeat kinda crashes if k/l are zero
+    if k <= 0 or l <= 0: 
+        if not err: 
+            print("Number of repeats must be larger than 0, k: {}, l: {}, returning default array!".format(k, l))
+            err.append('logged')
+        return rgb_array
+
+    # repeat the pixels k times along the y axis and l times along the x axis
+    # if the input image is of shape (m,n,3), the output image will be of shape (k*m, l*n, 3)
+
+    return np.repeat(np.repeat(rgb_array, k, axis=0), l, axis=1)
+
+
+#------------------------------
 # A3C model
 #------------------------------
 class A3C(keras.Model):
@@ -206,17 +224,28 @@ class MasterAgent():
         else:
             model_path                            = os.path.join(self.save_dir, 'model_{}.h5'.format(self.game_name))
         print('Loading model from: {}'.format(model_path))
-        model.load_weights(model_path)
+        try:
+            model.load_weights(model_path)
+        except:
+            print('\n\nNo model loaded.\n\n')
+            pass
         done                                      = False
         step_counter                              = 0
         reward_sum                                = 0
 
+        viewer = rendering.SimpleImageViewer()
         try:
             while not done:
-                env.render()#mode='rgb_array')
+                rgb = env.render('rgb_array')
+                upscaled=repeat_upsample(rgb,4, 4)
+                viewer.imshow(upscaled)
+                # env.render()#mode='rgb_array')
                 policy, _                         = model(tf.convert_to_tensor(state, dtype=tf.float32))
                 policy                            = tf.nn.softmax(policy)[0,:]
-                action                            = np.argmax(policy)
+                if args.algorithm=='random':
+                    action = env.action_space.sample()
+                else:
+                    action                        = np.argmax(policy)
                 state, reward, done, _            = env.step(action)
                 state                             = np.reshape(state, [1,84,84,args.framestack,1])
                 reward_sum                        = reward_sum + reward
@@ -400,7 +429,19 @@ python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm
 
 # Test model
 '''
+Starting model (random)
+>>> python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --algorithm 'random' --time-limit 5000 --framestack 1 --skip-frames 3
 
-python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir '/Users/young/Dropbox/Apps/reinforcement_learning/a3c/models' --time-limit 5000 --framestack 1 --skip-frames 3 --periodic-save 1
+10sec model (hide)
+>>> python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir 'models/10sec' --time-limit 5000 --framestack 1 --skip-frames 3 --periodic-save 0
+
+1min model
+>>> python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir 'models/1min' --time-limit 5000 --framestack 1 --skip-frames 3 --periodic-save 1
+
+hs model
+>>> python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir 'models/12h' --time-limit 5000 --framestack 1 --skip-frames 3 --periodic-save 1
+
+Latest model
+>>> python scripts/a3c_cnn_main.py --game-name DemonAttackNoFrameskip-v4 --save-dir '/Users/younle/Dropbox/Apps/reinforcement_learning/a3c/models' --framestack 1 --skip-frames 3 --periodic-save 0
 
 '''

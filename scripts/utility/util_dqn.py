@@ -14,14 +14,14 @@ except NameError:
     pass
 
 # get_ipython().system('brew install cmake openmpi')
-
-try:
-    from stable_baselines.common.atari_wrappers import WarpFrame
-except ModuleNotFoundError:
-    try: 
-        from stable_baselines.common.atari_wrappers import WarpFrame
-    except ModuleNotFoundError:
-        from baselines.common.atari_wrappers import WarpFrame
+# from baselines.common.atari_wrappers import WarpFrame
+# try:
+#     from stable_baselines.common.atari_wrappers import WarpFrame
+# except ModuleNotFoundError:
+#     try: 
+#         from stable_baselines.common.atari_wrappers import WarpFrame
+#     except ModuleNotFoundError:
+#         from baselines.common.atari_wrappers import WarpFrame
 
 import gym
 from gym import spaces

@@ -48,8 +48,8 @@ parser.add_argument('--game-name', default='CartPole-v0', type=str, help='Game n
 parser.add_argument('--algorithm', default='a3c', type=str, help='Choose between \'a3c\' and \'random\'.')
 parser.add_argument('--train', dest='train', action='store_true', help='Train our model.')
 parser.add_argument('--lr', default=0.001, type=float, help='Learning rate for the shared optimizer.')
-parser.add_argument('--update-freq', default=20, type=int, help='How often to update the global model.')
-parser.add_argument('--memory-size', default=20, type=int, help='How many previous turns to train global model per update.')
+parser.add_argument('--update-freq', default=5, type=int, help='How often to update the global model.')
+parser.add_argument('--memory-size', default=5, type=int, help='How many previous turns to train global model per update.')
 parser.add_argument('--max-eps', default=1000, type=int, help='Global maximum number of episodes to run.')
 parser.add_argument('--gamma', default=0.99, help='Discount factor of rewards.')
 parser.add_argument('--save-dir', default=os.path.join(main_dir, 'models'), type=str, help='Directory in which you desire to save the model.')
@@ -264,10 +264,10 @@ class Worker(threading.Thread):
                     # Print results at end of game
                     if done:
                         # Update global moving avg and also print results
-                        Worker.global_moving_average_reward= \
+                        Worker.global_moving_average_reward,_= \
                             record(Worker.global_episode, epi_reward, epi_adjusted_reward,
-                                   self.worker_idx, Worker.global_moving_average_reward, 
-                                   self.result_queue,self.epi_loss, epi_steps)
+                                   self.worker_idx, Worker.global_moving_average_reward, 0,
+                                   self.result_queue,0,self.epi_loss, epi_steps)
                         # # Reset episode time counter
                         # time_count                = 0
                         # Lock to save model and prevent data races
