@@ -68,39 +68,11 @@ parser.add_argument('--save-dir', default=os.path.join(main_dir, 'models'), type
 parser.add_argument('--save-freq', default=10, type=int, help='How often the model saves periodically.')
 args                                                = parser.parse_args()
 
-# # Unit test
-# class Args():
-#     def __init__(self, mode='train'):
-#         if mode.lower()=='train':
-#             self.game_name = 'BreakoutNoFrameskip-v4'
-#             self.algorithm = 'a3c'
-#             self.max_eps = 40
-#             self.save_dir = 'C:\\genesis_ai\\A3C\\temp'
-#             self.train = True
-#             self.update_freq = 5
-#             self.memory_size = 5
-#             self.framestack = 2
-#             self.lr = 0.00025
-#             self.gamma = 0.99
-#             self.skip_frames = 4
-#             self.trained_model = 'C:\\genesis_ai\\A3C\\models\\model_BreakoutNoFrameskip-v4.h5'
-#             self.time_limit = None
-#             self.save_freq = 10
-#         elif model.lower()=='play':
-#             self.game_name = 'BreakoutNoFrameskip-v4'
-#             self.save_dir = 'C:\\genesis_ai\\A3C\\temp'
-#             self.framestack = 2
-#             self.skip_frames = 4
-#             self.periodic_save = 1
-#             self.time_limit = None
-#             self.save_freq = 10
-
-# args = Args(mode='train')
-
 
 #------------------------------
 # Utility functions
 #------------------------------
+# Repeated upsample
 def repeat_upsample(rgb_array, k=1, l=1, err=[]):
     # repeat kinda crashes if k/l are zero
     if k <= 0 or l <= 0: 
@@ -112,6 +84,21 @@ def repeat_upsample(rgb_array, k=1, l=1, err=[]):
     # if the input image is of shape (m,n,3), the output image will be of shape (k*m, l*n, 3)
     return np.repeat(np.repeat(rgb_array, k, axis=0), l, axis=1)
 
+# Copy model layers
+def copy_layer_weights(model_from, model_to, layer_idx_from, layer_idx_to):
+    model_to.layers[layer_idx_to].set_weights(model_from.layers[layer_idx_from].get_weights())
+
+# Amplifier for policy (increases the probability that the argmax action gets chosen)
+def amplifier(policy, scale_factor=0.3):
+    max_policy                    = policy[np.argmax(policy)]
+    remainder_sum                 = sum(policy) - max_policy
+    new_max_policy                = scale_factor + (1-scale_factor)*max_policy
+    new_policy                    = [v * ((remainder_sum - scale_factor*(1-max_policy))/remainder_sum) if i != np.argmax(policy) else new_max_policy for i, v in enumerate(policy)]
+    # Round to 6 d.p. to avoid proba sum != 1 issues
+    new_policy                    = np.around(new_policy, 6)
+    new_policy[np.argmax(policy)] = np.around(new_policy[np.argmax(policy)] + np.around(1 - sum(new_policy), 6), 6)
+    return new_policy
+
 
 #------------------------------
 # A3C model
@@ -122,29 +109,38 @@ def a3c(state_size, action_size):
     # Define model
     model_input                                 = keras.models.Input(shape=(84,84,framestack,1))
     # CNN
-    x                                           = layers.Conv3D(32, kernel_size=(8,8,1), strides=(4,4,1), input_shape=state_size, activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer='random_uniform')(model_input)
+    x                                           = layers.Conv3D(32, kernel_size=(8,8,1), strides=(4,4,1), input_shape=state_size, activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer=keras.initializers.Constant(0.1))(model_input)
     x                                           = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')(x)
-    x                                           = layers.Conv3D(64, kernel_size=(4,4,1), strides=(2,2,1), activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer='random_uniform')(x)
+    x                                           = layers.Conv3D(64, kernel_size=(4,4,1), strides=(2,2,1), activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer=keras.initializers.Constant(0.1))(x)
     x                                           = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')(x)
-    x                                           = layers.Conv3D(128, kernel_size=(3,3,1), strides=(1,1,1), activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer='random_uniform')(x)
+    x                                           = layers.Conv3D(128, kernel_size=(3,3,1), strides=(1,1,1), activation='relu', padding='valid', kernel_initializer='random_uniform', bias_initializer=keras.initializers.Constant(0.1))(x)
     x                                           = layers.MaxPooling3D(pool_size=(2,2,1), strides=(1,1,1), padding='valid')(x)
+    x                                           = tf.stack([layers.Flatten()((x[:, :, :, i, :])) for i in range(framestack)], axis=1)
     # x                                         = layers.Dropout(x)
     # Policy model
-    x1                                          = layers.Flatten()(x)
-    x1                                          = layers.Dense(256, activation='tanh')(x1)
+    x1                                          = layers.LSTM(128, activation='tanh', return_sequences=False, bias_initializer='random_uniform')(x)
+    x1                                          = layers.Dense(64, activation='tanh', bias_initializer='random_uniform')(x1)
+    x1                                          = layers.Dense(8, activation='tanh')(x1)
     logits                                      = layers.Dense(action_size, activation='linear')(x1)
     # Value model
-    x2                                          = tf.stack([layers.Flatten()((x[:, :, :, i, :])) for i in range(framestack)], axis=1)
-    x2                                          = layers.Bidirectional(layers.LSTM(128, activation='relu', return_sequences=True))(x2)
-    x2                                          = layers.Bidirectional(layers.LSTM(128, activation='relu', return_sequences=True))(x2)
-    x2                                          = layers.LSTM(50, activation='relu')(x2)
+    x2                                          = layers.LSTM(64, activation='tanh', return_sequences=True, bias_initializer='random_uniform')(x)
+    x2                                          = layers.LSTM(8, activation='tanh', return_sequences=False)(x2)
     values                                      = layers.Dense(1, activation='linear')(x2)
     output                                      = logits, values
     model_name                                  = 'A3C'
     model                                       = keras.models.Model(inputs=model_input, outputs=output, name=model_name)
+    
+    # Transfer learn
+    # Initialise old model
+    # model_old = A3C(state_size=(84,84,2), action_size=4)
+    # _ = model_old(tf.convert_to_tensor(np.random.random((1, 84,84,2,1)), dtype=tf.float32))
+
+    # # Load old weights
+    # weights_path = 'C:\\genesis_ai\\A3C\\models\\BreakoutNoFrameskip-v4_periodic_save_copy.h5'
+    # model_old.load_weights(weights_path)
+    # [copy_layer_weights(model_from=model_old, model_to=model, layer_idx_from=i, layer_idx_to=i) for i in np.arange(1,7,1)]
     model.compile(optimizer='adam', loss='mse')
     return model
-
 # m = a3c(state_size=(84,84,3), action_size=4)
 # m.get_weights()[-2][-1][0]
 
@@ -180,7 +176,7 @@ class MasterAgent():
         # Load pre-trained model
         if args.train:
             try:
-                self.global_model.load_weights(args.trained_model)
+                self.global_model = keras.models.load_model(args.trained_model)
                 gen.set_section('Loaded pre-trained model')
                 time.sleep(1.0)
             except:
@@ -243,12 +239,12 @@ class MasterAgent():
         state                                       = np.reshape(state, [1,84,84,args.framestack,1])
         model                                       = self.global_model
         if args.periodic_save==1:
-            model_path                              = os.path.join(self.save_dir, 'model_{}_periodic_save.h5'.format(self.game_name))
+            model_path                              = os.path.join(self.save_dir, '{}_periodic_save.h5'.format(self.game_name))
         else:
-            model_path                              = os.path.join(self.save_dir, 'model_{}.h5'.format(self.game_name))
+            model_path                              = os.path.join(self.save_dir, '{}.h5'.format(self.game_name))
         print('Loading model from: {}'.format(model_path))
         try:
-            model.load_weights(model_path)
+            model = keras.models.load_model(model_path)
             # print(model.get_weights()[0][-1][-1][-1][-1][-1])
         except:
             print('\n\nNo model loaded.\n\n')
@@ -260,10 +256,10 @@ class MasterAgent():
         viewer                                      = rendering.SimpleImageViewer()
         try:
             while not done:
-                rgb                                 = env.render('rgb_array')
-                upscaled=repeat_upsample(rgb,2, 2)
-                viewer.imshow(upscaled)
-                # env.render()#mode='rgb_array')
+                # rgb                                 = env.render('rgb_array')
+                # upscaled=repeat_upsample(rgb,2, 2)
+                # viewer.imshow(upscaled)
+                env.render()#mode='rgb_array')
                 policy, _                           = model(tf.convert_to_tensor(state, dtype=tf.float32))
                 policy                              = tf.nn.softmax(policy)[0,:]
                 print(policy)
@@ -347,19 +343,22 @@ class Worker(threading.Thread):
             while not done:
                 # Boltzmann action selection
                 logits, _                           = self.local_model(tf.convert_to_tensor(current_state,dtype=tf.float32))
-                probs                               = tf.nn.softmax(logits[0,:])
+                probs                               = tf.nn.softmax(logits[0,:]).numpy()
                 min_probs.append(min(probs))
-                action                              = np.random.choice(self.action_size, p=probs.numpy())
+                action                              = np.random.choice(self.action_size, p=probs)
+                # probs_amp = amplifier(probs, scale_factor=0.05)
+                # min_probs.append(min(probs_amp))
+                # action                              = np.random.choice(self.action_size, p=probs_amp)
                 # Play action
                 new_state, reward, done, _          = self.env.step(action)
                 new_state                           = np.reshape(new_state, [1,84,84,args.framestack,1])
                 if done:
                     adjusted_reward                 = -1.
-                elif (abs(reward)<0.0001) & (action!=no_action_idx):
-                    adjusted_reward                 = -0.01#-.02
-                elif (abs(reward)<0.0001):
-                    adjusted_reward                 = 0.
-                elif (abs(reward)>=0.0001):
+                elif (abs(reward)<0.000001) & (action!=no_action_idx):
+                    adjusted_reward                 = 0.#-0.005#-.02
+                elif (abs(reward)<0.000001):
+                    adjusted_reward                 = 0.002
+                elif (abs(reward)>=0.00001):
                     adjusted_reward                 = 1.0#np.sign(reward)# - 0.01
                 epi_reward                          = epi_reward + reward
                 epi_adjusted_reward                 = epi_adjusted_reward + adjusted_reward
@@ -414,7 +413,7 @@ class Worker(threading.Thread):
                                     with Worker.save_lock:
                                         print('Saving best model to {}, '
                                                     'episode score: {}'.format(self.save_dir, epi_reward))
-                                        self.global_model.save_weights(os.path.join(self.save_dir,'model_{}.h5'.format(self.game_name)))
+                                        self.global_model.save(os.path.join(self.save_dir,'{}.h5'.format(self.game_name)))
                                         Worker.best_score=epi_reward
                                         break
                                 except OSError:
@@ -425,7 +424,7 @@ class Worker(threading.Thread):
                             while True:
                                 try:
                                     with Worker.save_periodic_lock:
-                                        self.global_model.save_weights(os.path.join(self.save_dir,'model_{}_periodic_save.h5'.format(self.game_name)))
+                                        self.global_model.save(os.path.join(self.save_dir,'{}_periodic_save.h5'.format(self.game_name)))
                                         print('Model periodic save')
                                         break
                                 except OSError:
@@ -484,11 +483,26 @@ if __name__=='__main__':
 # Train model
 '''
 # Windows train
->>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --algorithm a3c --max-eps=10000 --save-dir C:\\genesis_ai\\A3C\\models --train --update-freq 5 --memory-size 5 --framestack 3 --lr 0.00025 --gamma 0.99 --skip-frames 4 --save-freq 50
-
->>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --algorithm a3c --max-eps=1000000 --save-dir C:\\genesis_ai\\A3C\\models --train --update-freq 5 --memory-size 5 --framestack 2 --lr 0.00025 --gamma 0.99 --skip-frames 4 --save-freq 50 --trained-model C:\\genesis_ai\\A3C\\models\\model_BreakoutNoFrameskip-v4.h5
+>>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --algorithm a3c --max-eps=1000000 --save-dir C:\\genesis_ai\\A3C\\models --train --update-freq 25 --memory-size 25 --framestack 4 --lr 0.00025 --gamma 0.99 --skip-frames 4 --save-freq 50 --trained-model C:\\genesis_ai\\A3C\\models\\BreakoutNoFrameskip-v4_periodic_save.h5
+>>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --algorithm a3c --max-eps=1000000 --save-dir C:\\genesis_ai\\A3C\\models\\breakout_experiment --train --update-freq 8 --memory-size 8 --framestack 3 --lr 0.00025 --gamma 0.99 --skip-frames 4 --save-freq 50
 
 # Windows play
->>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --save-dir C:\\genesis_ai\\A3C\\models --framestack 2 --skip-frames 4 --periodic-save 1
+>>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --save-dir C:\\genesis_ai\\A3C\\models --framestack 4 --skip-frames 4 --periodic-save 1
+>>> python scripts\\a3c_cnn_main_windows_v3.py --game-name BreakoutNoFrameskip-v4 --save-dir C:\\genesis_ai\\A3C\\models\\breakout_experiment --framestack 3 --skip-frames 3 --periodic-save 1
+
+
+import numpy as np
+import tensorflow as tf
+from datetime import datetime
+tf.convert_to_tensor(np.random.random((1, 84,84,4,1)), dtype=tf.float32)
+model = keras.applications.mobilenet_v2.MobileNetV2(input_shape=(84,84,3), include_top=False, weights='imagenet')
+
+st = datetime.now()
+model.predict((tf.convert_to_tensor(np.random.random((1, 84,84,3)), dtype=tf.float32)))
+print(datetime.now()-st)
+model = keras.applications.mobilenet_v2.MobileNetV2(input_shape=(84,84,3), weights='imagenet')
+model.summary()
+model.predict((tf.convert_to_tensor(np.random.random((1, 84,84,3)), dtype=tf.float32))).shape
+
 '''
 

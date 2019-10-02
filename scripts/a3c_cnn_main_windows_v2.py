@@ -135,7 +135,7 @@ class A3C(keras.Model):
         self.dense1                                 = layers.Dense(256, activation='tanh')
         self.policy_logits                          = layers.Dense(action_size, activation='linear')
         # Value model
-        # self.dense2                                 = layers.Dense(256, activation='tanh')
+        self.dense2                                 = layers.Dense(256, activation='tanh')
         self.values                                 = layers.Dense(1, activation='linear')
     # Forward
     def call(self, inputs):
@@ -149,11 +149,10 @@ class A3C(keras.Model):
         # x                                         = self.dropout(x)
         x                                           = self.flatten(x)
         x1 = self.dense1(x)
-        # x1                                          = self.lstm(x)
         logits                                      = self.policy_logits(x1)
         # Value model
-        # x2                                          = self.dense2(x)
-        values                                      = self.values(x1)
+        x2                                          = self.dense2(x)
+        values                                      = self.values(x2)
         return logits, values
 
 
@@ -497,5 +496,6 @@ if __name__=='__main__':
 
 # Windows play
 >>> python scripts\\a3c_cnn_main_windows_v2.py --game-name BreakoutNoFrameskip-v4 --save-dir C:\\genesis_ai\\A3C\\models --framestack 2 --skip-frames 4 --periodic-save 1
+>>> python scripts\\a3c_cnn_main_windows_v2.py --game-name BreakoutNoFrameskip-v4 --save-dir C:\\genesis_ai\\A3C\\models\\breakout --framestack 2 --skip-frames 4 --periodic-save 1
 '''
 
