@@ -118,13 +118,13 @@ def a3c(state_size, action_size):
     x                                           = tf.stack([layers.Flatten()((x[:, :, :, i, :])) for i in range(framestack)], axis=1)
     # x                                         = layers.Dropout(x)
     # Policy model
-    x1                                          = layers.LSTM(128, activation='tanh', return_sequences=False, bias_initializer='random_uniform')(x)
-    x1                                          = layers.Dense(64, activation='tanh', bias_initializer='random_uniform')(x1)
-    x1                                          = layers.Dense(8, activation='tanh')(x1)
+    x                                           = layers.BatchNormalization(center=True, scale=True)(x)
+    x1                                          = layers.LSTM(64, activation='tanh', return_sequences=True, bias_initializer='random_uniform')(x)
+    x1                                          = layers.LSTM(64, activation='tanh', return_sequences=False, bias_initializer='random_uniform')(x)
     logits                                      = layers.Dense(action_size, activation='linear')(x1)
     # Value model
     x2                                          = layers.LSTM(64, activation='tanh', return_sequences=True, bias_initializer='random_uniform')(x)
-    x2                                          = layers.LSTM(8, activation='tanh', return_sequences=False)(x2)
+    x2                                          = layers.LSTM(64, activation='tanh', return_sequences=False)(x2)
     values                                      = layers.Dense(1, activation='linear')(x2)
     output                                      = logits, values
     model_name                                  = 'A3C'
@@ -139,7 +139,7 @@ def a3c(state_size, action_size):
     # weights_path = 'C:\\genesis_ai\\A3C\\models\\BreakoutNoFrameskip-v4_periodic_save_copy.h5'
     # model_old.load_weights(weights_path)
     # [copy_layer_weights(model_from=model_old, model_to=model, layer_idx_from=i, layer_idx_to=i) for i in np.arange(1,7,1)]
-    model.compile(optimizer='adam', loss='mse')
+    # model.compile(optimizer='adam', loss='mse')
     return model
 # m = a3c(state_size=(84,84,3), action_size=4)
 # m.get_weights()[-2][-1][0]

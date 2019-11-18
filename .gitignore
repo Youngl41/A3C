@@ -1,5 +1,8 @@
 # Data
 *.zip
+*.jpg
+*.gz
+/Data/*
 # *.h5
 #**/Raw_Data/**
 #**/Features/**
